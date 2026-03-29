@@ -15,6 +15,7 @@ Endpoints:
     - POST /step: Execute an action
     - GET /state: Get current environment state
     - GET /schema: Get action/observation schemas
+    - GET /health: Health check endpoint
     - WS /ws: WebSocket endpoint for persistent sessions
 
 Usage:
@@ -51,6 +52,13 @@ app = create_app(
     env_name="RLAgent",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+
+
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):
