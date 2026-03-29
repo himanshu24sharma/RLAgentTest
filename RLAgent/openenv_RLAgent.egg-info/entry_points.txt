@@ -1,0 +1,2 @@
+[console_scripts]
+server = RLAgent.server.app:main
