@@ -3,15 +3,11 @@
 #
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
-
 """
-FastAPI application for the Rlagent Environment.
-
-This module creates an HTTP server that exposes the RlagentEnvironment
-over HTTP and WebSocket endpoints, compatible with EnvClient.
+FastAPI application for the Warehouse Picker Environment.
 
 Endpoints:
-    - POST /reset: Reset the environment
+    - POST /reset: Reset the environment (accepts optional task= param)
     - POST /step: Execute an action
     - GET /state: Get current environment state
     - GET /schema: Get action/observation schemas
@@ -19,73 +15,72 @@ Endpoints:
     - WS /ws: WebSocket endpoint for persistent sessions
 
 Usage:
-    # Development (with auto-reload):
     uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
-
-    # Production:
-    uvicorn server.app:app --host 0.0.0.0 --port 8000 --workers 4
-
-    # Or run directly:
-    python -m server.app
 """
 
 try:
     from openenv.core.env_server.http_server import create_app
-except Exception as e:  # pragma: no cover
+except Exception as e:
     raise ImportError(
-        "openenv is required for the web interface. Install dependencies with '\n    uv sync\n'"
+        "openenv is required. Install dependencies with '\n    uv sync\n'"
     ) from e
 
 try:
-    from models import RlagentAction, RlagentObservation
-    from .RLAgent_environment import RlagentEnvironment
+    from models import WarehouseAction, WarehouseObservation
+    from .RLAgent_environment import WarehouseEnvironment
 except ModuleNotFoundError:
-    from models import RlagentAction, RlagentObservation
-    from server.RLAgent_environment import RlagentEnvironment
+    from models import WarehouseAction, WarehouseObservation
+    from server.RLAgent_environment import WarehouseEnvironment
 
 
-# Create the app with web interface and README integration
 app = create_app(
-    RlagentEnvironment,
-    RlagentAction,
-    RlagentObservation,
-    env_name="RLAgent",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    WarehouseEnvironment,
+    WarehouseAction,
+    WarehouseObservation,
+    env_name="WarehousePicker",
+    max_concurrent_envs=4,
 )
+
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "env": "WarehousePicker-v0"}
 
 
-
+@app.get("/tasks")
+async def list_tasks():
+    """List available tasks and their configurations."""
+    return {
+        "tasks": {
+            "single_item_fetch": {
+                "difficulty": "easy",
+                "grid": "6x5",
+                "items": 1,
+                "max_steps": 30,
+            },
+            "multi_item_order": {
+                "difficulty": "medium",
+                "grid": "10x8",
+                "items": 3,
+                "max_steps": 100,
+            },
+            "rush_order": {
+                "difficulty": "hard",
+                "grid": "12x10",
+                "items": 5,
+                "max_steps": 150,
+            },
+        }
+    }
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):
-    """
-    Entry point for direct execution via uv run or python -m.
-
-    This function enables running the server without Docker:
-        uv run --project . server
-        uv run --project . server --port 8001
-        python -m RLAgent.server.app
-
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 8000)
-
-    For production deployments, consider using uvicorn directly with
-    multiple workers:
-        uvicorn RLAgent.server.app:app --workers 4
-    """
     import uvicorn
-
     uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
     import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
