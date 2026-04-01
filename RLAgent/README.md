@@ -1,19 +1,28 @@
 ---
-title: Rlagent Environment Server
-emoji: 🖥️
+title: Warehouse Picker Environment
+emoji: 📦
 colorFrom: yellow
-colorTo: blue
+colorTo: green
 sdk: docker
 pinned: false
 app_port: 8000
 base_path: /web
 tags:
   - openenv
+  - reinforcement-learning
+  - warehouse
 ---
 
-# Rlagent Environment
+# 📦 Warehouse Picker Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+A grid-based reinforcement learning environment simulating a **warehouse order fulfillment agent**.
+
+The agent must:
+- Navigate warehouse aisles
+- Pick items from shelves
+- Deliver them to a dispatch zone
+
+The objective is to **maximize efficiency** by completing all deliveries in the fewest steps.
 
 ## Quick Start
 
@@ -119,24 +128,37 @@ The deployed space includes:
 ## Environment Details
 
 ### Action
-**RlagentAction**: Contains a single field
-- `message` (str) - The message to echo back
+
+**RlagentAction**
+- `action` (int) — discrete action (0–5)
 
 ### Observation
-**RlagentObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
 
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
+**RlagentObservation**
 
-## Advanced Usage
+| Field | Description |
+|------|------------|
+| agent_x, agent_y | Agent position |
+| remaining_items | Item locations |
+| holding_item | Carrying item |
+| dispatch_x, dispatch_y | Goal position |
+| items_delivered | Completed deliveries |
+| total_items | Total items |
+| steps_elapsed | Steps taken |
+| max_steps | Step limit |
+| done | Episode finished |
+| reward | Last reward |
+
+### Reward Function
+
+- Pick item → +1.0  
+- Deliver item → +2.0  
+- All delivered → +5.0  
+- Step penalty → −0.01  
+- Invalid action → −0.2  
+- Collision → −0.1  
+
+<!-- ## Advanced Usage
 
 ### Connecting to an Existing Server
 
@@ -233,7 +255,7 @@ Run the server locally for development:
 
 ```bash
 uvicorn server.app:app --reload
-```
+``` -->
 
 ## Project Structure
 
@@ -247,6 +269,8 @@ RLAgent/
 ├── uv.lock                # Locked dependencies (generated)
 ├── client.py              # RlagentEnv client
 ├── models.py              # Action and Observation models
+├── grader.py              # Task scoring logic (0.0 → 1.0)
+├── baseline.py            # Greedy baseline agent
 └── server/
     ├── __init__.py        # Server module exports
     ├── RLAgent_environment.py  # Core environment logic

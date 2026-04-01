@@ -1,7 +1,124 @@
 spec_version: 1
-name: RLAgent
+name: WarehousePicker-v0
 type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
 
+description: >
+  A grid-based warehouse environment where an agent navigates aisles,
+  picks items from shelves, and delivers them to a dispatch zone.
+  Supports three difficulty levels from single-item fetch to timed rush orders.
+
+tags:
+  - reinforcement-learning
+  - navigation
+  - logistics
+  - grid-world
+
+action_space:
+  type: discrete
+  n: 6
+  actions:
+    0: "Move up"
+    1: "Move down"
+    2: "Move left"
+    3: "Move right"
+    4: "Pick item at current cell"
+    5: "Deliver held item at dispatch zone"
+
+observation_space:
+  type: dict
+  fields:
+    agent_x:
+      type: int
+      description: Agent column position on the grid
+    agent_y:
+      type: int
+      description: Agent row position on the grid
+    remaining_items:
+      type: list
+      description: List of (x, y) positions of items not yet picked
+    holding_item:
+      type: bool
+      description: Whether the agent is currently carrying a picked item
+    dispatch_x:
+      type: int
+      description: Dispatch zone column position
+    dispatch_y:
+      type: int
+      description: Dispatch zone row position
+    items_delivered:
+      type: int
+      description: Number of items delivered so far this episode
+    total_items:
+      type: int
+      description: Total items in this episode's order
+    steps_elapsed:
+      type: int
+      description: Number of steps taken so far
+    max_steps:
+      type: int
+      description: Maximum steps allowed this episode
+    done:
+      type: bool
+      description: Whether the episode has ended
+    reward:
+      type: float
+      description: Reward received for the last action
+
+reward:
+  pick: 1.0
+  deliver: 2.0
+  completion_bonus: 5.0
+  step_penalty: -0.01
+  invalid_action: -0.2
+  collision: -0.1
+
+tasks:
+  - id: single_item_fetch
+    difficulty: easy
+    description: >
+      Pick one item from a small 6x5 grid and deliver it to the dispatch zone.
+      No shelf obstacles block direct routes.
+    grid: [6, 5]
+    items: 1
+    max_steps: 30
+    passing_threshold: 0.8
+
+  - id: multi_item_order
+    difficulty: medium
+    description: >
+      Pick 3 items scattered across a 10x8 grid with aisle shelf obstacles.
+      Optimal routing across multiple items is required.
+    grid: [10, 8]
+    items: 3
+    max_steps: 100
+    passing_threshold: 0.6
+
+  - id: rush_order
+    difficulty: hard
+    description: >
+      Pick 5 items on a full 12x10 grid under a strict step budget.
+      The agent must plan an efficient multi-stop route to complete the order.
+    grid: [12, 10]
+    items: 5
+    max_steps: 150
+    passing_threshold: 0.5
+
+scoring:
+  formula: >
+    score = (items_delivered / total_items) * 0.6
+          + max(0, 1 - steps_used / max_steps) * 0.3
+          + (0.1 if completed else 0.0)
+  range: [0.0, 1.0]
+
+baseline:
+  agent: greedy heuristic (nearest-item, aisle-aware routing)
+  script: baseline.py
+  seed: 42
+  scores:
+    single_item_fetch: 0.870
+    multi_item_order: 0.814
+    rush_order: 0.804
+    average: 0.829

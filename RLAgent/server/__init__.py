@@ -6,6 +6,5 @@
 
 """Rlagent environment server components."""
 
-from .RLAgent_environment import RlagentEnvironment
-
-__all__ = ["RlagentEnvironment"]
+from .RLAgent_environment import WarehouseEnvironment
+__all__ = ["WarehouseEnvironment"]
