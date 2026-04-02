@@ -6,11 +6,11 @@
 
 """Rlagent Environment."""
 
-from .client import RlagentEnv
-from .models import RlagentAction, RlagentObservation
+from .client import RlagentEnv as WarehouseEnv
+from .models import WarehouseAction, WarehouseObservation
 
 __all__ = [
-    "RlagentAction",
-    "RlagentObservation",
-    "RlagentEnv",
+    "WarehouseAction",
+    "WarehouseObservation",
+    "WarehouseEnv",
 ]

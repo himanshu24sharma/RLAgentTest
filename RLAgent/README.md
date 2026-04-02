@@ -13,267 +13,192 @@ tags:
   - warehouse
 ---
 
-# 📦 Warehouse Picker Environment
+# 📦 WarehousePicker-v0
 
 A grid-based reinforcement learning environment simulating a **warehouse order fulfillment agent**.
 
 The agent must:
-- Navigate warehouse aisles
-- Pick items from shelves
-- Deliver them to a dispatch zone
+- Navigate warehouse aisles on a 2D grid
+- Pick items from shelf-adjacent floor cells
+- Deliver them one at a time to a dispatch zone
 
-The objective is to **maximize efficiency** by completing all deliveries in the fewest steps.
+The objective is to **complete all deliveries in the fewest steps possible**.
+
+---
 
 ## Quick Start
 
-The simplest way to use the Rlagent environment is through the `RlagentEnv` class:
-
-```python
-from RLAgent import RlagentAction, RlagentEnv
-
-try:
-    # Create environment from Docker image
-    RLAgentenv = RlagentEnv.from_docker_image("RLAgent-env:latest")
-
-    # Reset
-    result = RLAgentenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
-
-    for msg in messages:
-        result = RLAgentenv.step(RlagentAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
-
-finally:
-    # Always clean up
-    RLAgentenv.close()
-```
-
-That's it! The `RlagentEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
-
-## Building the Docker Image
-
-Before using the environment, you need to build the Docker image:
+### 1. Clone and build
 
 ```bash
-# From project root
-docker build -t RLAgent-env:latest -f server/Dockerfile .
+git clone <your-repo-url>
+cd RLAgentTest/RLAgent
+docker build -t rlagent -f server/Dockerfile .
 ```
 
-## Deploying to Hugging Face Spaces
-
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
+### 2. Run the container
 
 ```bash
-# From the environment directory (where openenv.yaml is located)
-openenv push
-
-# Or specify options
-openenv push --namespace my-org --private
+docker run -p 8000:8000 -p 8888:8888 rlagent
 ```
 
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
-
-### Prerequisites
-
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
-
-### Options
-
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
-
-### Examples
+### 3. Install Jupyter (one time)
 
 ```bash
-# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
-openenv push
-
-# Push to a specific repository
-openenv push --repo-id my-org/my-env
-
-# Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
-# Push as a private space
-openenv push --private
-
-# Combine options
-openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
+docker exec -it <container_id> /app/.venv/bin/pip install jupyterlab --quiet
 ```
 
-After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
+### 4. Launch Jupyter
 
-The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
+```bash
+docker exec -it <container_id> /app/.venv/bin/jupyter lab \
+  --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+```
+
+Open the URL printed in the terminal (e.g. `http://127.0.0.1:8888/lab?token=...`), then open `script.ipynb` and run all cells.
+
+---
+
+## Verify the environment
+
+Run the test suite inside the container:
+
+```bash
+docker exec -it <container_id> bash
+cd /app/env
+python test.py
+```
+
+Expected output:
+```
+ALL TESTS PASSED — environment is ready
+```
+
+Run the baseline agent to reproduce scores:
+
+```bash
+python baseline.py
+```
+
+Expected output:
+```
+  single_item_fetch   [█████████████████░░░] 0.870
+  multi_item_order    [████████████████░░░░] 0.814
+  rush_order          [████████████████░░░░] 0.804
+  Average score : 0.829
+```
+
+---
 
 ## Environment Details
 
-### Action
+### Action space
 
-**RlagentAction**
-- `action` (int) — discrete action (0–5)
+Discrete — 6 actions:
 
-### Observation
+| ID | Action | Description |
+|----|--------|-------------|
+| 0 | Move up | Move agent one cell north |
+| 1 | Move down | Move agent one cell south |
+| 2 | Move left | Move agent one cell west |
+| 3 | Move right | Move agent one cell east |
+| 4 | Pick | Pick item at current cell |
+| 5 | Deliver | Deposit held item at dispatch zone |
 
-**RlagentObservation**
+### Observation space
 
-| Field | Description |
-|------|------------|
-| agent_x, agent_y | Agent position |
-| remaining_items | Item locations |
-| holding_item | Carrying item |
-| dispatch_x, dispatch_y | Goal position |
-| items_delivered | Completed deliveries |
-| total_items | Total items |
-| steps_elapsed | Steps taken |
-| max_steps | Step limit |
-| done | Episode finished |
-| reward | Last reward |
+| Field | Type | Description |
+|-------|------|-------------|
+| agent_x, agent_y | int | Agent position on the grid |
+| remaining_items | list | (x, y) positions of items not yet picked |
+| holding_item | bool | Whether the agent is carrying an item |
+| dispatch_x, dispatch_y | int | Dispatch zone position |
+| items_delivered | int | Items delivered so far |
+| total_items | int | Total items in this order |
+| steps_elapsed | int | Steps taken this episode |
+| max_steps | int | Step budget for this episode |
+| done | bool | Whether the episode has ended |
+| reward | float | Reward from last action |
 
-### Reward Function
+### Reward function
 
-- Pick item → +1.0  
-- Deliver item → +2.0  
-- All delivered → +5.0  
-- Step penalty → −0.01  
-- Invalid action → −0.2  
-- Collision → −0.1  
+| Event | Reward |
+|-------|--------|
+| Successful pick | +1.0 |
+| Successful delivery | +2.0 |
+| All items delivered | +5.0 bonus |
+| Each step taken | −0.01 |
+| Invalid action | −0.2 |
+| Collision with wall/shelf | −0.1 |
 
-<!-- ## Advanced Usage
+---
 
-### Connecting to an Existing Server
+## Tasks
 
-If you already have a Rlagent environment server running, you can connect directly:
+Three difficulty levels, each graded 0.0–1.0:
 
-```python
-from RLAgent import RlagentEnv
+| Task | Difficulty | Grid | Items | Max Steps | Passing Threshold |
+|------|-----------|------|-------|-----------|-------------------|
+| single_item_fetch | Easy | 6×5 | 1 | 30 | 0.8 |
+| multi_item_order | Medium | 10×8 | 3 | 100 | 0.6 |
+| rush_order | Hard | 12×10 | 5 | 150 | 0.5 |
 
-# Connect to existing server
-RLAgentenv = RlagentEnv(base_url="<ENV_HTTP_URL_HERE>")
+### Scoring formula
 
-# Use as normal
-result = RLAgentenv.reset()
-result = RLAgentenv.step(RlagentAction(message="Hello!"))
+```
+score = (items_delivered / total_items) * 0.6
+      + max(0, 1 - steps_used / max_steps) * 0.3
+      + (0.1 if completed else 0.0)
 ```
 
-Note: When connecting to an existing server, `RLAgentenv.close()` will NOT stop the server.
+---
 
-### Using the Context Manager
+## Baseline scores (seed=42, greedy heuristic agent)
 
-The client supports context manager usage for automatic connection management:
+| Task | Score | Items | Steps | Completed |
+|------|-------|-------|-------|-----------|
+| single_item_fetch | 0.870 | 1/1 | 13/30 | Yes |
+| multi_item_order | 0.814 | 3/3 | 62/100 | Yes |
+| rush_order | 0.804 | 5/5 | 98/150 | Yes |
+| **Average** | **0.829** | | | |
 
-```python
-from RLAgent import RlagentAction, RlagentEnv
+---
 
-# Connect with context manager (auto-connects and closes)
-with RlagentEnv(base_url="http://localhost:8000") as env:
-    result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-    # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(RlagentAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
-```
-
-The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
-The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
-
-```python
-# In server/app.py - use factory mode for concurrent sessions
-app = create_app(
-    RlagentEnvironment,  # Pass class, not instance
-    RlagentAction,
-    RlagentObservation,
-    max_concurrent_envs=4,  # Allow 4 concurrent sessions
-)
-```
-
-Then multiple clients can connect simultaneously:
-
-```python
-from RLAgent import RlagentAction, RlagentEnv
-from concurrent.futures import ThreadPoolExecutor
-
-def run_episode(client_id: int):
-    with RlagentEnv(base_url="http://localhost:8000") as env:
-        result = env.reset()
-        for i in range(10):
-            result = env.step(RlagentAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
-
-# Run 4 episodes concurrently
-with ThreadPoolExecutor(max_workers=4) as executor:
-    results = list(executor.map(run_episode, range(4)))
-```
-
-## Development & Testing
-
-### Direct Environment Testing
-
-Test the environment logic directly without starting the HTTP server:
+## Deploying to Hugging Face Spaces
 
 ```bash
-# From the server directory
-python3 server/RLAgent_environment.py
+# From the RLAgent directory
+openenv push
+
+# Or with options
+openenv push --repo-id my-org/warehouse-picker --private
 ```
 
-This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
+After deployment your space will have:
+- **Web Interface** at `/web` — interactive UI
+- **API Docs** at `/docs` — Swagger interface
+- **Health Check** at `/health`
+- **WebSocket** at `/ws` — persistent low-latency sessions
 
-### Running Locally
+---
 
-Run the server locally for development:
-
-```bash
-uvicorn server.app:app --reload
-``` -->
-
-## Project Structure
+## Project structure
 
 ```
 RLAgent/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # RlagentEnv client
-├── models.py              # Action and Observation models
-├── grader.py              # Task scoring logic (0.0 → 1.0)
-├── baseline.py            # Greedy baseline agent
+├── __init__.py                 # Module exports (WarehouseEnv, WarehouseAction)
+├── client.py                   # HTTP/WebSocket client
+├── models.py                   # WarehouseAction & WarehouseObservation
+├── grader.py                   # Task scorer (0.0 → 1.0)
+├── baseline.py                 # Greedy heuristic baseline agent
+├── test.py                     # Environment verification suite
+├── script.ipynb                # Interactive notebook demo
+├── openenv.yaml                # OpenEnv manifest
+├── pyproject.toml              # Project metadata and dependencies
+├── README.md                   # This file
 └── server/
-    ├── __init__.py        # Server module exports
-    ├── RLAgent_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+    ├── RLAgent_environment.py  # Warehouse grid world
+    ├── app.py                  # FastAPI server
+    ├── __init__.py
+    └── Dockerfile
 ```
