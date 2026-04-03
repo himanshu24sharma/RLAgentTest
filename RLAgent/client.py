@@ -3,8 +3,9 @@
 #
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
-
-"""Rlagent Environment Client."""
+# client.py
+# client.py
+"""Warehouse Picker Environment Client."""
 
 from typing import Dict
 
@@ -12,87 +13,51 @@ from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
 
-from .models import RlagentAction, RlagentObservation
+from .models import WarehouseAction, WarehouseObservation
 
 
-class RlagentEnv(
-    EnvClient[RlagentAction, RlagentObservation, State]
-):
+class RlagentEnv(EnvClient[WarehouseAction, WarehouseObservation, State]):
     """
-    Client for the Rlagent Environment.
-
-    This client maintains a persistent WebSocket connection to the environment server,
-    enabling efficient multi-step interactions with lower latency.
-    Each client instance has its own dedicated environment session on the server.
+    Client for the WarehousePicker-v0 Environment.
 
     Example:
-        >>> # Connect to a running server
-        >>> with RlagentEnv(base_url="http://localhost:8000") as client:
-        ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
-        ...
-        ...     result = client.step(RlagentAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
-
-    Example with Docker:
-        >>> # Automatically start container and connect
-        >>> client = RlagentEnv.from_docker_image("RLAgent-env:latest")
-        >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(RlagentAction(message="Test"))
-        ... finally:
-        ...     client.close()
+        >>> with RlagentEnv(base_url="http://localhost:8000").sync() as client:
+        ...     obs = client.reset()
+        ...     obs = client.step(WarehouseAction(action=3))  # move right
+        ...     print(obs.observation.agent_x, obs.observation.reward)
     """
 
-    def _step_payload(self, action: RlagentAction) -> Dict:
-        """
-        Convert RlagentAction to JSON payload for step message.
+    def _step_payload(self, action: WarehouseAction) -> Dict:
+        # Server expects {"action": {"action": <int>}}
+        return {"action": action.action}
 
-        Args:
-            action: RlagentAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
-        """
-        return {
-            "message": action.message,
-        }
-
-    def _parse_result(self, payload: Dict) -> StepResult[RlagentObservation]:
-        """
-        Parse server response into StepResult[RlagentObservation].
-
-        Args:
-            payload: JSON response data from server
-
-        Returns:
-            StepResult with RlagentObservation
-        """
+    def _parse_result(self, payload: Dict) -> StepResult[WarehouseObservation]:
         obs_data = payload.get("observation", {})
-        observation = RlagentObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
-        )
+        # done and reward are at the TOP LEVEL of the payload, not inside observation
+        done   = payload.get("done", False)
+        reward = payload.get("reward", 0.0)
 
+        observation = WarehouseObservation(
+            agent_x=obs_data.get("agent_x", 0),
+            agent_y=obs_data.get("agent_y", 0),
+            remaining_items=obs_data.get("remaining_items", []),
+            holding_item=obs_data.get("holding_item", False),
+            dispatch_x=obs_data.get("dispatch_x", 0),
+            dispatch_y=obs_data.get("dispatch_y", 0),
+            items_delivered=obs_data.get("items_delivered", 0),
+            total_items=obs_data.get("total_items", 0),
+            steps_elapsed=obs_data.get("steps_elapsed", 0),
+            max_steps=obs_data.get("max_steps", 100),
+            done=done,
+            reward=reward,
+        )
         return StepResult(
             observation=observation,
-            reward=payload.get("reward"),
-            done=payload.get("done", False),
+            reward=reward,
+            done=done,
         )
 
     def _parse_state(self, payload: Dict) -> State:
-        """
-        Parse server response into State object.
-
-        Args:
-            payload: JSON response from state request
-
-        Returns:
-            State object with episode_id and step_count
-        """
         return State(
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),
