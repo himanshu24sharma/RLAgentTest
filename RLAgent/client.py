@@ -48,6 +48,7 @@ class RlagentEnv(EnvClient[WarehouseAction, WarehouseObservation, State]):
             total_items=obs_data.get("total_items", 0),
             steps_elapsed=obs_data.get("steps_elapsed", 0),
             max_steps=obs_data.get("max_steps", 100),
+            shelf_positions=obs_data.get("shelf_positions", []), 
             done=done,
             reward=reward,
         )

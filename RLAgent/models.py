@@ -66,6 +66,12 @@ class WarehouseObservation(Observation):
     steps_elapsed: int = Field(default=0, description="Steps taken so far this episode")
     max_steps: int = Field(default=100, description="Step budget for this episode")
 
+    # Grid structure — shelf positions the agent cannot walk through
+    shelf_positions: List[Tuple[int, int]] = Field(
+        default_factory=list,
+        description="Grid positions of impassable shelf cells",
+    )
+
     # Standard OpenEnv fields
     done: bool = Field(default=False, description="True if the episode has ended")
     reward: float = Field(default=0.0, description="Reward received for the last action")

@@ -319,6 +319,12 @@ class WarehouseEnvironment(Environment):
             total_items=self._num_items,
             steps_elapsed=self._state.step_count,
             max_steps=self._max_steps,
+            shelf_positions=[
+                (x, y)
+                for y in range(self._H)
+                for x in range(self._W)
+                if self._grid[y][x] == 1
+            ],
             done=self._done,
             reward=reward,
         )
